@@ -18,27 +18,25 @@ int M = 10000;
 int N = 10000;
 int alpha = -1;
 
-void askparams(int *pm, int *pn){
-  int n_max = *pn;
-  int m_max = *pm;
+void askparams(int *pm, int m_min, int m_max, int *pn, int n_min, int n_max){
 
   do{
     addwstr(MESSAGE_1);
-    printw("[2-%d]: ", m_max);
+    printw("[%d-%d]: ", m_min, m_max);
     scanw("%d", pm);
-    if (*pm <= 1 || *pm > m_max){
+    if (*pm < m_min || *pm > m_max){
       addwstr(L"Значение m введено неверно\n");
     }
-  }while(*pm <= 1 || *pm > m_max);
+  }while(*pm < m_min || *pm > m_max);
 
   do{
     addwstr(MESSAGE_2);
-    printw("[1-%d]: ", n_max);
+    printw("[%d-%d]: ", n_min, n_max);
     scanw("%d", pn);
-    if (*pn <= 0 || *pn > n_max){
+    if (*pn < n_min || *pn > n_max){
       addwstr(L"Значение n введено неверно\n");
     }
-  }while(*pn <= 0 || *pn > n_max);
+  }while(*pn < n_min || *pn > n_max);
 
   do{
     addwstr(MESSAGE_3);
@@ -178,12 +176,18 @@ double** load_data(char* filename){
    buf[loaded] = 0;
    return buf;
 }
-int display(const wchar_t* str1, const wchar_t* str2, double c){
+int display(const wchar_t** pokaz, int i, int j, double c){
   int a = -1;
-  mvaddwstr(3, 3, L"1 - ");
-  mvaddwstr(3, 7, str1);
-  mvaddwstr(5, 3, L"2 - ");
-  mvaddwstr(5, 7, str2);
+  const wchar_t *str1 = pokaz[i];
+  const wchar_t *str2 = pokaz[j];
+
+//  mvprintw(2, 3, "%d => 1, %d => 2", i+1, j+1);
+  mvprintw(3, 3, "1 - [%d] ", i+1);
+//  mvaddwstr(3, 3, L"1 - ");
+  mvaddwstr(3, 14, str1);
+  mvprintw(5, 3, "2 - [%d] ", j+1);
+//  mvaddwstr(5, 3, L"2 - ");
+  mvaddwstr(5, 14, str2);
   mvaddwstr(7, 3, L"Коэффициент корреляции:        ");
   mvprintw(7, 27, "%f", c);
   mvaddwstr(9, 3, L"Выберите один из вариантов:");
@@ -238,11 +242,12 @@ double** create_matrix(int len){
   int i,j;
   double ** matrix;
 
-  matrix = malloc(len*sizeof(double*));
+  matrix = malloc((len+1)*sizeof(double*));
 
   for(i=0; i<len; i++){
-    matrix[i] = malloc(len*sizeof(double));
+    matrix[i] = malloc((len+1)*sizeof(double));
   }
+  matrix[len] = 0;
 
   for(i=0; i<len; i++){
     matrix[i][i] = 1.0;
@@ -250,6 +255,7 @@ double** create_matrix(int len){
       matrix[i][j] = NAN;
       matrix[j][i] = NAN;
     }
+    matrix[i][len] = INFINITY;
   }
   return matrix;
 }
@@ -276,9 +282,13 @@ void save_correlation(char* filename, double** matrix, int len){
   f = fopen(filename, "w");
   for(i=0; i<len; i++){
     for(j=0; j<len; j++){
-      fprintf(f, "%f ", matrix[i][j]);
+      fprintf(f, "%f", fabs(matrix[i][j]));
+      if (j < len-1){
+        fprintf(f, " ");
+      }else{
+        fprintf(f, "\n");
+      }
     }
-    fprintf(f, "\n");
   }
   fclose(f);
 }
@@ -306,7 +316,7 @@ int update_arc(double** matrix, const wchar_t** pokaz, int i, int j, double c){
   int a;
 
   do{
-    a = display(pokaz[i], pokaz[j], c);
+    a = display(pokaz, i, j, c);
   }while (a < 0 || a > 3);
 
   if (a == 1){
@@ -329,12 +339,71 @@ int update_arc(double** matrix, const wchar_t** pokaz, int i, int j, double c){
 
   return -1;
 }
+int check_matrix_size(double **matrix){
+  int size = -1;
+  int i,j;
+  int max_j;
+  int max_i;
+
+  max_i = -1;
+  for(i=0; matrix[i]; i++){
+    max_i = i;
+
+    max_j = -1;
+    for(j=0; !isinf(matrix[i][j]); j++){
+//      printw("%d:%f ", j, matrix[i][j]);
+      max_j = j;
+    }
+    if (max_j == -1){
+      return -1;
+    }
+    if(size == -1){
+      size = max_j;
+    }else if (size != max_j){
+      return -2;
+    }
+  }
+  if (max_i != size){
+    printw("%d %d\n", max_i, size);
+    getch();
+    return -3;
+  }
+  return size+1;
+}
+
+double** resize_matrix(double** matrix, int new_size){
+  double ** res = matrix;;
+  int i,j;
+
+  for(i=0; i<new_size; i++){
+    if (!res[i]){
+      res = realloc(res, (i+2)*sizeof(double*));
+      res[i] = malloc((new_size+1)*sizeof(double));
+      for(j=0; j<new_size; j++){
+        res[i][j] = NAN;
+      }
+      res[i][i] = 1.0;
+      res[i][new_size] = INFINITY;
+    }else{
+      for(j=0; j<new_size; j++){
+        if (isinf(res[i][j])){
+          res[i] = realloc(res[i], (j+2)*sizeof(double));
+          res[i][j] = NAN;
+          res[i][j+1] = INFINITY;
+        }
+      }
+    }
+  }
+  return res;
+}
+
 int main(){
   int i,j;
   double c;
   double **matrix_corr;
   wchar_t** pokaz;
   double **data;
+  int size;
 
   setlocale(LC_ALL, "");
 
@@ -348,6 +417,8 @@ int main(){
       break;
     }
   }
+
+  setlocale(LC_ALL, "C");
 
   data = load_data("data.txt");
   if (!data){
@@ -367,16 +438,54 @@ int main(){
       }
     }
   }
+  matrix_corr = load_data("corr_alpha.txt");
+
+
+  setlocale(LC_ALL, "");
+
+  initscr();
+  if (matrix_corr){
+//    printw("has matrix\n");
+    size = check_matrix_size(matrix_corr);
+  }else{
+//    printw("no matrix\n");
+    size = 0;
+  }
 //  printf("M=%d N=%d\n", M,N);
 //  return 0;
-  initscr();
 
-  askparams(&M, &N);
+  if (size <= 0){
+    if (size == -1){
+    addwstr(L"Есть пустая строка\n");
+    } else if (size == -2){
+    addwstr(L"Длина строк разная\n");
+    } else if (size == -3){
+    addwstr(L"Матрица не квадратная\n");
+    }
+    if (matrix_corr){
+      destroy_array((void**)matrix_corr);
+    }
+    matrix_corr = 0;
+  }
 
-  matrix_corr = create_matrix(M);
+  if (size < 2){
+    size = 2;
+  }
+  askparams(&M, size, M, &N, 2, N);
+
+  if (!matrix_corr){
+    matrix_corr = create_matrix(M);
+  }else{
+    matrix_corr = resize_matrix(matrix_corr, M);
+  }
 
   for(i=0; i<M; i++){
     for(j=i+1; j<M; j++){
+//      printw("%d %d =1> %f\n", i,j,matrix_corr[i][j]);
+      if (!isnan(matrix_corr[i][j]) || isinf(matrix_corr[i][j])){
+        continue;
+      }
+//      printw("%d %d =2> %f\n", i,j,matrix_corr[i][j]);
       c = calc_corr(data[i], data[j], N);
       if (!isnan(c) && fabs(c) > alpha){
         if (update_arc(matrix_corr, (const wchar_t**)pokaz, i, j, c) < 0){
@@ -386,8 +495,10 @@ int main(){
       }
     }
   }
+
   endwin();
 
+  setlocale(LC_ALL, "C");
   save_correlation("corr_alpha.txt", matrix_corr, M);
   save_adjustment("adj_matr.txt", matrix_corr, M);
   destroy_matrix(matrix_corr, M);
