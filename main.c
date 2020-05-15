@@ -24,12 +24,12 @@ void askparams(int *pm, int *pn){
 
   do{
     addwstr(MESSAGE_1);
-    printw("[1-%d]: ", m_max);
+    printw("[2-%d]: ", m_max);
     scanw("%d", pm);
-    if (*pm <= 0 || *pm > m_max){
+    if (*pm <= 1 || *pm > m_max){
       addwstr(L"Значение m введено неверно\n");
     }
-  }while(*pm <= 0 || *pm > m_max);
+  }while(*pm <= 1 || *pm > m_max);
 
   do{
     addwstr(MESSAGE_2);
