@@ -1,9 +1,20 @@
 CC ?= gcc
 
-all: correlation$(SUFFIX)
+CFLAGS += -Wall -std=c99 -I/usr/include/ncursesw -D_XOPEN_SOURCE=700
+LDFLAGS += -lncursesw -lm
 
-correlation$(SUFFIX): main.o
-	$(CC) -o $@ $<
+TARGET := correlation$(SUFFIX)
 
-.o.c:
-	$(CC) -o $@ $<
+all: $(TARGET)
+
+$(TARGET): main.o
+	$(CC) -o $@ $<  $(LDFLAGS)
+
+.c.o:
+	$(CC) -c -o $@ $(CFLAGS) $< 
+
+clean:
+	rm *.o *.d
+
+
+.PHONY: all clean
