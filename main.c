@@ -5,47 +5,39 @@
 #include <ncurses.h>
 #include <math.h>
 
-#define MAX_BUF 100
+// Величина корреляции, приравнянная к 0
 #define THR 1e-6
+// Максимальная длина имени показателя
 #define MAX_STR 1000
 
 
-static const wchar_t* MESSAGE_1 = L"Число показателей m ";
-static const wchar_t* MESSAGE_2 = L"Число лет n ";
-static const wchar_t* MESSAGE_3 = L"alpha ";
-
-int M = 10000;
-int N = 10000;
-int alpha = -1;
-
-void askparams(int *pm, int m_min, int m_max, int *pn, int n_min, int n_max){
-
+void ask_int_param(const wchar_t *str, int *p, int min, int max){
   do{
-    addwstr(MESSAGE_1);
-    printw("[%d-%d]: ", m_min, m_max);
-    scanw("%d", pm);
-    if (*pm < m_min || *pm > m_max){
-      addwstr(L"Значение m введено неверно\n");
+    addwstr(str);
+    printw("[%d-%d]: ", min, max);
+    scanw("%d", p);
+    if (*p < min || *p > max){
+      addwstr(L"Значение введено неверно\n");
     }
-  }while(*pm < m_min || *pm > m_max);
-
+  }while(*p < min || *p > max);
+}
+void ask_double_param(const wchar_t *str, double *p, double min, double max){
   do{
-    addwstr(MESSAGE_2);
-    printw("[%d-%d]: ", n_min, n_max);
-    scanw("%d", pn);
-    if (*pn < n_min || *pn > n_max){
-      addwstr(L"Значение n введено неверно\n");
+    addwstr(str);
+    printw("[%.1lf-%.1lf]: ", min, max);
+    scanw("%lf", p);
+    if (*p < min || *p > max){
+      addwstr(L"Значение введено неверно\n");
     }
-  }while(*pn < n_min || *pn > n_max);
+  }while(*p < min || *p > max);
+}
 
-  do{
-    addwstr(MESSAGE_3);
-    printw("[0-1]: ");
-    scanw("%f", &alpha);
-    if (alpha < 0 || alpha > 1){
-      addwstr(L"Значение alpha введено неверно\n");
-    }
-  }while(alpha < 0 || alpha > 1);
+void askparams(int *pm, int m_min, int m_max, int *pn, int n_min, int n_max, double* palpha, double a_min, double a_max){
+
+  ask_int_param(L"Число показателей m ", pm, m_min, m_max);
+  ask_int_param(L"Число лет n ", pn, n_min, n_max);
+  ask_double_param(L"alpha ", palpha, a_min, a_max);
+
   erase();
 }
 
@@ -375,24 +367,31 @@ double** resize_matrix(double** matrix, int new_size){
   double ** res = matrix;;
   int i,j;
 
-  for(i=0; i<new_size; i++){
-    if (!res[i]){
-      res = realloc(res, (i+2)*sizeof(double*));
-      res[i] = malloc((new_size+1)*sizeof(double));
-      for(j=0; j<new_size; j++){
-        res[i][j] = NAN;
-      }
-      res[i][i] = 1.0;
-      res[i][new_size] = INFINITY;
-    }else{
-      for(j=0; j<new_size; j++){
-        if (isinf(res[i][j])){
-          res[i] = realloc(res[i], (j+2)*sizeof(double));
-          res[i][j] = NAN;
-          res[i][j+1] = INFINITY;
-        }
-      }
+  res = realloc(res, (new_size+1)*sizeof(double));
+  i=0; 
+  while(res[i]) {
+    res[i] = realloc(res[i], (new_size+1)*sizeof(double));
+    j=0;
+    while(!isinf(res[i][j])) {
+      j++;
     }
+    while(j<new_size){
+      res[i][j] = NAN;
+      j++;
+    }
+    res[i][new_size] = INFINITY;
+    i++;
+  }
+  while(i < new_size){
+    res[i] = malloc((new_size+1)*sizeof(double));
+    for(j=0; j<new_size; j++){
+      res[i][j] = NAN;
+    }
+    res[i][new_size] = INFINITY;
+    i++;
+  }
+  for(i=0; i<new_size; i++){
+    res[i][i] = 1.0;
   }
   return res;
 }
@@ -404,6 +403,16 @@ int main(){
   wchar_t** pokaz;
   double **data;
   int size;
+
+  // Количество показателей
+  int M = 10000;
+  // С какого показателя начинать
+  int first_M = 1;
+  // Количество лет статистики
+  int N = 10000;
+  // Пороговый коэффициент корреляции
+  double alpha = -1;
+
 
   setlocale(LC_ALL, "");
 
@@ -471,15 +480,27 @@ int main(){
   if (size < 2){
     size = 2;
   }
-  askparams(&M, size, M, &N, 2, N);
+
+  ask_int_param(L"Число показателей m ", &M, size, M);
+  if (M > 1){
+    ask_int_param(L"Начать с показателя под номером ", &first_M, 1, M-1);
+  }else{
+    first_M = 1;
+  }
+  ask_int_param(L"Число лет n ", &N, 2, N);
+  ask_double_param(L"alpha ", &alpha, 0, 1);
+
+  erase();
 
   if (!matrix_corr){
     matrix_corr = create_matrix(M);
   }else{
     matrix_corr = resize_matrix(matrix_corr, M);
+printw("M=%d f=%d %f\n", M, first_M, matrix_corr[first_M-1][first_M]);
+getch();
   }
 
-  for(i=0; i<M; i++){
+  for(i=first_M-1; i<M; i++){
     for(j=i+1; j<M; j++){
 //      printw("%d %d =1> %f\n", i,j,matrix_corr[i][j]);
       if (!isnan(matrix_corr[i][j]) || isinf(matrix_corr[i][j])){
