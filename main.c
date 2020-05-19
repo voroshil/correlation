@@ -4,6 +4,7 @@
 #include <locale.h>
 #include <ncurses.h>
 #include <math.h>
+#include <panel.h>
 
 // Величина корреляции, приравнянная к 0
 #define THR 1e-6
@@ -16,11 +17,67 @@
 #define ADJ_UNK 2
 #define ADJ_END 255
 
+void messagebox(const wchar_t *str){
+  const int height = 6;
+  const int width = 40;
+  const wchar_t *title = L"Сообщение";
+  const wchar_t *footer = L"Нажмите любую клавишу";
+  int starty;
+  int startx;
+  int len;
+  int flen;
+  int fpos;
+  WINDOW* local_win;
+  WINDOW* internal_win;
+
+  starty = (LINES - height) / 2;
+  startx = (COLS - width) / 2;
+
+  len = wcsnlen(title, width - 6);
+  flen = wcsnlen(footer, width - 6);
+
+  fpos = (width - flen) / 2;
+
+  refresh();
+
+  local_win = newwin(height, width, starty, startx);
+
+  box(local_win, 0, 0);
+  mvwaddch(local_win, 0, 2, ACS_RTEE);
+  mvwaddwstr(local_win, 0, 3, title);
+  mvwaddch(local_win, 0, 3+len, ACS_LTEE);
+
+  mvwaddch(local_win, height-1, fpos-1, ACS_RTEE);
+  mvwaddwstr(local_win, height-1, fpos, footer);
+  mvwaddch(local_win, height-1, fpos + flen, ACS_LTEE);
+
+  internal_win = derwin(local_win, height-2, width-2, 1,1);
+  mvwaddwstr(internal_win, 0, 0, str);
+
+  wrefresh(local_win);
+  wrefresh(internal_win);
+
+  getch();
+
+  wborder(local_win, ' ',' ',' ',' ',' ',' ',' ',' ');
+  wrefresh(local_win);
+  delwin(internal_win);
+  delwin(local_win);
+  redrawwin(stdscr);
+  refresh();
+
+}
+
 void ask_int_param(const wchar_t *str, int *p, int min, int max){
   do{
     addwstr(str);
     printw("[%d-%d]: ", min, max);
-    scanw("%d", p);
+    if(min < max){
+      scanw("%d", p);
+    }else{
+      *p = min;
+      printw("%d\n", *p);
+    }
     if (*p < min || *p > max){
       addwstr(L"Значение введено неверно\n");
     }
@@ -569,7 +626,7 @@ int main(){
   // Количество лет статистики
   int N = 10000;
   // Пороговый коэффициент корреляции
-  double alpha = -1;
+  double alpha = 0;
 
 
   setlocale(LC_ALL, "");
@@ -613,34 +670,48 @@ int main(){
 
   if (matrix_adj){
     size = check_adj_matrix_size(matrix_adj);
+
+    messagebox(L"Найдены ранее введенные данные в adj_matrix.txt. Заполнение будет продолжено.");
+
   }else{
-    matrix_adj = malloc(sizeof(unsigned char*));
-    matrix_adj[0] = 0;
     size = 0;
   }
 
 
   if (size <= 0){
     if (size == -1){
-    addwstr(L"Есть пустая строка\n");
+    messagebox(L"Есть пустая строка");
     } else if (size == -2){
-    addwstr(L"Длина строк разная\n");
+    messagebox(L"Длина строк разная");
     } else if (size == -3){
-    addwstr(L"Матрица не квадратная\n");
+    messagebox(L"Матрица не квадратная");
     }
-    if (matrix_adj){
-      destroy_array((void**)matrix_adj);
+    if (!matrix_adj){
+      matrix_adj = malloc(sizeof(unsigned char*));
+      matrix_adj[0] = 0;
     }
-    matrix_corr = 0;
+  }
+
+  for(i=0; i<size; i++){
+    if (matrix_adj[i]){
+      for(j=i+1; j<size;j++){
+        if (matrix_adj[i][j] == ADJ_UNK){
+          first_M=i+1;
+          i=size;
+          break;
+        }else if (matrix_adj[i][j] == ADJ_END){
+          break;
+        }
+      }
+    }
   }
 
   if (size < 2){
     size = 2;
   }
-
   ask_int_param(L"Число показателей m ", &M, size, M);
   if (M > 1){
-    ask_int_param(L"Начать с показателя под номером ", &first_M, 1, M-1);
+    ask_int_param(L"Начать с показателя под номером ", &first_M, first_M, M-1);
   }else{
     first_M = 1;
   }
