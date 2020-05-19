@@ -21,7 +21,7 @@ void messagebox(const wchar_t *str){
   const int height = 6;
   const int width = 40;
   const wchar_t *title = L"Сообщение";
-  const wchar_t *footer = L"Нажмите любую клавишу";
+  const wchar_t *footer = L"Нажмите ENTER";
   int starty;
   int startx;
   int len;
@@ -29,6 +29,7 @@ void messagebox(const wchar_t *str){
   int fpos;
   WINDOW* local_win;
   WINDOW* internal_win;
+  char c;
 
   starty = (LINES - height) / 2;
   startx = (COLS - width) / 2;
@@ -57,7 +58,10 @@ void messagebox(const wchar_t *str){
   wrefresh(local_win);
   wrefresh(internal_win);
 
-  getch();
+  do{
+   c = getch();
+  }while (c!= '\n');
+
 
   wborder(local_win, ' ',' ',' ',' ',' ',' ',' ',' ');
   wrefresh(local_win);
@@ -125,13 +129,13 @@ wchar_t** load_pokazat(char* filename){
       str = fgetws(buf_str, MAX_STR, f);
       if (str){
         loaded++;
-        len = wcsnlen(str, MAX_STR);
         if (loaded >= max_size){
           max_size = max_size + 10;
           buf = realloc(buf, max_size * sizeof(wchar_t*));
         }
+        len = wcsnlen(str, MAX_STR);
         buf[loaded] = malloc((len+1) * sizeof(wchar_t));
-        wcsncpy(buf[loaded], str, len);
+        wcsncpy(buf[loaded], str, len+1);
       }
    }while(str);
 
@@ -313,26 +317,44 @@ int display(const wchar_t** pokaz, int i, int j, double c){
   int a = -1;
   const wchar_t *str1 = pokaz[i];
   const wchar_t *str2 = pokaz[j];
+  WINDOW* w1;
+  WINDOW* w2;
 
 //  mvprintw(2, 3, "%d => 1, %d => 2", i+1, j+1);
-  mvprintw(3, 3, "1 - [%d] ", i+1);
 //  mvaddwstr(3, 3, L"1 - ");
-  mvaddwstr(3, 14, str1);
-  mvprintw(5, 3, "2 - [%d] ", j+1);
 //  mvaddwstr(5, 3, L"2 - ");
-  mvaddwstr(5, 14, str2);
   mvaddwstr(7, 3, L"Коэффициент корреляции:        ");
   mvprintw(7, 27, "%f", c);
   mvaddwstr(9, 3, L"Выберите один из вариантов:");
   mvaddwstr(11, 3, L"1. Показатель 1->2 (1 влияет на 2, то есть 2 зависит от 1)");
   mvaddwstr(12, 3, L"2. Показатель 2->1 (2 влияет на 1, то есть 1 зависит от 2)");
   mvaddwstr(13, 3, L"3. Показатель 1<->2 (зависят друг от друга)");
-  mvaddwstr(14, 3, L"0. Выход из программы");
+  mvaddwstr(14, 3, L"0. Сохранить и выйти");
+
+  w2 = newwin(4, 10, 3, 3);
+  mvwprintw(w2, 0, 0, "1 - [%d] ", i+1);
+  mvwprintw(w2, 2, 0, "2 - [%d] ", j+1);
+  wrefresh(w2);
+
+  w1 = newwin(4, COLS-14, 3, 14);
+  mvwaddwstr(w1, 0, 0, str1);
+  mvwaddwstr(w1, 2, 0, str2);
+  wrefresh(w1);
+
+  refresh();
+
   while (a < 0 || a > 3){
     mvaddwstr(16, 3, L"Введите число 1,2,3 или 0:       ");
+    redrawwin(w1);
+    redrawwin(w2);
+    wrefresh(w1);
+    wrefresh(w2);
     refresh();
     mvscanw(16,30, "%d", &a);
   }
+
+  delwin(w1);
+  delwin(w2);
   return a;
 }
 double calc_corr(const double* x, const double* y, int len){
