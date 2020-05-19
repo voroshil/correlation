@@ -11,6 +11,11 @@
 #define MAX_STR 1000
 
 
+#define ADJ_YES 1
+#define ADJ_NO  0
+#define ADJ_UNK 2
+#define ADJ_END 255
+
 void ask_int_param(const wchar_t *str, int *p, int min, int max){
   do{
     addwstr(str);
@@ -82,6 +87,85 @@ wchar_t** load_pokazat(char* filename){
    res[loaded+1] = 0;
    free(buf);
    return res;
+}
+
+unsigned char* load_adj_line(FILE* f){
+  unsigned char* buf;
+  int loaded, max_size;
+  char c;
+
+  max_size = 100;
+  loaded = 0;
+
+  buf = malloc(max_size * sizeof(unsigned char));
+  buf[0] = ADJ_END;
+
+  do{
+    c = fgetc(f);
+
+    switch(c){
+      case '0':
+        buf[loaded] = ADJ_NO;
+        break;
+      case '1':
+        buf[loaded] = ADJ_YES;
+        break;
+      case '.':
+        buf[loaded] = ADJ_UNK;
+        break;
+      case ' ':
+      case '\n':
+      case EOF:
+        loaded++;
+        if(loaded >= max_size-1){
+          max_size = max_size + 100;
+          buf = realloc(buf, max_size * sizeof(unsigned char));
+        }
+        buf[loaded] = ADJ_END;
+    }
+  }while(c!= '\n' && c != EOF);
+//  printf("%d\n",loaded);
+  buf = realloc(buf, (loaded+1)*sizeof(unsigned char));
+  buf[loaded] = ADJ_END;
+  return buf;
+}
+unsigned char** load_adj_data(char* filename){
+   unsigned char** buf;
+   unsigned char* row;
+   int max_size, len, i;
+   int loaded;
+   FILE *f;
+
+
+   max_size = 1;
+   loaded = 0;
+
+   buf = malloc(max_size * sizeof(unsigned char*));
+   f= fopen(filename, "r");
+   if (!f)
+     return 0;
+   do{
+      row = load_adj_line(f);
+      len = 0;
+      for(i=0; row[i] != ADJ_END; i++){
+        len = i+1;
+      }
+      if (len > 0){
+        if (loaded >= max_size){
+          max_size = max_size + 1;
+          buf = realloc(buf, max_size * sizeof(unsigned char*));
+        }
+        buf[loaded] = row;
+        loaded++;
+//        printf("lines: %d\n", loaded);
+      }
+   }while(len > 0);
+
+   fclose(f);
+
+   buf = realloc(buf, (loaded+1) * sizeof(unsigned char*));
+   buf[loaded] = 0;
+   return buf;
 }
 
 double* load_line(FILE* f){
@@ -267,14 +351,20 @@ void destroy_array(void** buf){
   }
   free(buf);
 }
-void save_correlation(char* filename, double** matrix, int len){
+void save_correlation(char* filename, unsigned char** adj,double** matrix, int len){
   int i,j;
   FILE * f;
 
   f = fopen(filename, "w");
   for(i=0; i<len; i++){
     for(j=0; j<len; j++){
-      fprintf(f, "%f", fabs(matrix[i][j]));
+      if (adj[i][j] == ADJ_YES){
+        fprintf(f, "%f", fabs(matrix[i][j]));
+      }else if (adj[i][j] == ADJ_NO){
+        fprintf(f, "%f", 0.0);
+      }else{
+        fprintf(f, "%f", NAN);
+      }
       if (j < len-1){
         fprintf(f, " ");
       }else{
@@ -284,7 +374,7 @@ void save_correlation(char* filename, double** matrix, int len){
   }
   fclose(f);
 }
-void save_adjustment(char* filename, double** matrix, int len){
+void save_adjustment(char* filename, unsigned char** matrix, int len){
   int i,j;
   FILE *f;
   double c;
@@ -293,18 +383,20 @@ void save_adjustment(char* filename, double** matrix, int len){
   for(i=0; i<len; i++){
     for(j=0; j<len; j++){
       c = matrix[i][j];
-      if (fabs(c) > THR)
-        fprintf(f, "1 ");
-      else if (isnan(c))
-        fprintf(f, ". ");
+      if (c == ADJ_YES)
+        fprintf(f, "1");
+      else if (c == ADJ_NO)
+        fprintf(f, "0");
       else
-        fprintf(f, "0 ");
+        fprintf(f, ".");
+      if(matrix[i][j+1] != ADJ_END)
+        fprintf(f, " ");
     }
     fprintf(f, "\n");
   }
   fclose(f);
 }
-int update_arc(double** matrix, const wchar_t** pokaz, int i, int j, double c){
+int update_arc(unsigned char** matrix, const wchar_t** pokaz, int i, int j, double c){
   int a;
 
   do{
@@ -312,25 +404,58 @@ int update_arc(double** matrix, const wchar_t** pokaz, int i, int j, double c){
   }while (a < 0 || a > 3);
 
   if (a == 1){
-    matrix[i][j] = c;
-    matrix[j][i] = 0;
+    matrix[i][j] = ADJ_YES;
+    matrix[j][i] = ADJ_NO;
     return 0;
   }
 
   if (a == 2){
-    matrix[i][j] = 0;
-    matrix[j][i] = c;
+    matrix[i][j] = ADJ_NO;
+    matrix[j][i] = ADJ_YES;
     return 0;
   }
 
   if (a == 3){
-    matrix[i][j] = c;
-    matrix[j][i] = c;
+    matrix[i][j] = ADJ_YES;
+    matrix[j][i] = ADJ_YES;
     return 0;
   }
 
   return -1;
 }
+
+int check_adj_matrix_size(unsigned char **matrix){
+  int size = -1;
+  int i,j;
+  int max_j;
+  int max_i;
+
+  max_i = -1;
+  for(i=0; matrix[i]; i++){
+    max_i = i;
+
+    max_j = -1;
+    for(j=0; matrix[i][j] != ADJ_END; j++){
+//      printw("%d:%f ", j, matrix[i][j]);
+      max_j = j;
+    }
+    if (max_j == -1){
+      return -1;
+    }
+    if(size == -1){
+      size = max_j;
+    }else if (size != max_j){
+      return -2;
+    }
+  }
+  if (max_i != size){
+    printw("%d %d\n", max_i, size);
+    getch();
+    return -3;
+  }
+  return size+1;
+}
+
 int check_matrix_size(double **matrix){
   int size = -1;
   int i,j;
@@ -356,13 +481,45 @@ int check_matrix_size(double **matrix){
     }
   }
   if (max_i != size){
-    printw("%d %d\n", max_i, size);
-    getch();
+//    printw("%d %d\n", max_i, size);
+//    getch();
     return -3;
   }
   return size+1;
 }
 
+unsigned char** resize_adj_matrix(unsigned char** matrix, int new_size){
+  unsigned char ** res = matrix;;
+  int i,j;
+
+  res = realloc(res, (new_size+1)*sizeof(unsigned char*));
+  i=0; 
+  while(res[i]) {
+    res[i] = realloc(res[i], (new_size+1)*sizeof(unsigned char));
+    j=0;
+    while(res[i][j] != ADJ_END) {
+      j++;
+    }
+    while(j<new_size){
+      res[i][j] = ADJ_UNK;
+      j++;
+    }
+    res[i][new_size] = ADJ_END;
+    i++;
+  }
+  while(i < new_size){
+    res[i] = malloc((new_size+1)*sizeof(unsigned char));
+    for(j=0; j<new_size; j++){
+      res[i][j] = ADJ_UNK;
+    }
+    res[i][new_size] = ADJ_END;
+    i++;
+  }
+  for(i=0; i<new_size; i++){
+    res[i][i] = ADJ_YES;
+  }
+  return res;
+}
 double** resize_matrix(double** matrix, int new_size){
   double ** res = matrix;;
   int i,j;
@@ -400,6 +557,7 @@ int main(){
   int i,j;
   double c;
   double **matrix_corr;
+  unsigned char**matrix_adj;
   wchar_t** pokaz;
   double **data;
   int size;
@@ -447,21 +605,20 @@ int main(){
       }
     }
   }
-  matrix_corr = load_data("corr_alpha.txt");
-
+  matrix_adj = load_adj_data("adj_matr.txt");
 
   setlocale(LC_ALL, "");
 
   initscr();
-  if (matrix_corr){
-//    printw("has matrix\n");
-    size = check_matrix_size(matrix_corr);
+
+  if (matrix_adj){
+    size = check_adj_matrix_size(matrix_adj);
   }else{
-//    printw("no matrix\n");
+    matrix_adj = malloc(sizeof(unsigned char*));
+    matrix_adj[0] = 0;
     size = 0;
   }
-//  printf("M=%d N=%d\n", M,N);
-//  return 0;
+
 
   if (size <= 0){
     if (size == -1){
@@ -471,8 +628,8 @@ int main(){
     } else if (size == -3){
     addwstr(L"Матрица не квадратная\n");
     }
-    if (matrix_corr){
-      destroy_array((void**)matrix_corr);
+    if (matrix_adj){
+      destroy_array((void**)matrix_adj);
     }
     matrix_corr = 0;
   }
@@ -492,27 +649,29 @@ int main(){
 
   erase();
 
-  if (!matrix_corr){
-    matrix_corr = create_matrix(M);
-  }else{
-    matrix_corr = resize_matrix(matrix_corr, M);
-printw("M=%d f=%d %f\n", M, first_M, matrix_corr[first_M-1][first_M]);
-getch();
+  matrix_adj = resize_adj_matrix(matrix_adj, M);
+  matrix_corr = create_matrix(M);
+  for(i=0; i<M; i++){
+    matrix_corr[i][i] = 1.0;
+    for(j=i+1; j<M; j++){
+      c = calc_corr(data[i], data[j], N);
+      matrix_corr[i][j] = c;
+      matrix_corr[j][i] = c;
+    }
   }
 
   for(i=first_M-1; i<M; i++){
     for(j=i+1; j<M; j++){
-//      printw("%d %d =1> %f\n", i,j,matrix_corr[i][j]);
-      if (!isnan(matrix_corr[i][j]) || isinf(matrix_corr[i][j])){
-        continue;
+      c = matrix_corr[i][j];
+      if (isnan(c) || fabs(c) <= alpha){
+          matrix_adj[i][j] = 0;
+          matrix_adj[j][i] = 0;
       }
-//      printw("%d %d =2> %f\n", i,j,matrix_corr[i][j]);
-      c = calc_corr(data[i], data[j], N);
-      if (!isnan(c) && fabs(c) > alpha){
-        if (update_arc(matrix_corr, (const wchar_t**)pokaz, i, j, c) < 0){
-          i = M;
-          break;
-        }
+      if (matrix_adj[i][j] == 2 || matrix_adj[j][i] == 2){
+          if (update_arc(matrix_adj, (const wchar_t**)pokaz, i, j, c) < 0){
+            i = M;
+            break;
+          }
       }
     }
   }
@@ -520,8 +679,8 @@ getch();
   endwin();
 
   setlocale(LC_ALL, "C");
-  save_correlation("corr_alpha.txt", matrix_corr, M);
-  save_adjustment("adj_matr.txt", matrix_corr, M);
+  save_correlation("corr_alpha.txt", matrix_adj, matrix_corr, M);
+  save_adjustment("adj_matr.txt", matrix_adj, M);
   destroy_matrix(matrix_corr, M);
   destroy_array((void**)pokaz);
   destroy_array((void**)data);
