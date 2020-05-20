@@ -34,8 +34,13 @@ void messagebox(const wchar_t *str){
   starty = (LINES - height) / 2;
   startx = (COLS - width) / 2;
 
-  len = wcsnlen(title, width - 6);
-  flen = wcsnlen(footer, width - 6);
+  len = wcslen(title);
+  if (len > width -6)
+    len = width -6;
+
+  flen = wcslen(footer);
+  if (flen > width - 6)
+    flen = width - 6;
 
   fpos = (width - flen) / 2;
 
@@ -133,7 +138,10 @@ wchar_t** load_pokazat(char* filename){
           max_size = max_size + 10;
           buf = realloc(buf, max_size * sizeof(wchar_t*));
         }
-        len = wcsnlen(str, MAX_STR);
+        len = wcslen(str);
+        if (len > MAX_STR - 1)
+          len = MAX_STR - 1;
+
         buf[loaded] = malloc((len+1) * sizeof(wchar_t));
         wcsncpy(buf[loaded], str, len+1);
       }
