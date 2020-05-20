@@ -1,14 +1,14 @@
 CC ?= gcc
 
 CFLAGS += -Wall -std=c99 -I/usr/include/ncursesw -D_XOPEN_SOURCE=700
-LDFLAGS += -lncursesw -lm
+LDFLAGS += -lncursesw -ltinfo -lm
 
 TARGET := correlation$(SUFFIX)
 
 all: $(TARGET)
 
 $(TARGET): main.o
-	$(CC) -o $@ $<  $(LDFLAGS)
+	$(CC) -static $< -o $@  $(LDFLAGS)
 
 .c.o:
 	$(CC) -c -o $@ $(CFLAGS) $< 
