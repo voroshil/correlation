@@ -95,8 +95,8 @@ void ask_int_param(const wchar_t *str, int *p, int min, int max){
 void ask_double_param(const wchar_t *str, double *p, double min, double max){
   do{
     addwstr(str);
-    printw("[%.1lf-%.1lf]: ", min, max);
-    scanw("%lf", p);
+    printw("[%.1f-%.1f]: ", min, max);
+    scanw("%f", p);
     if (*p < min || *p > max){
       addwstr(L"Значение введено неверно\n");
     }
