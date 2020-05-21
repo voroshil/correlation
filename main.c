@@ -2,7 +2,7 @@
 #include <wchar.h>
 #include <stdlib.h>
 #include <locale.h>
-#include <ncurses.h>
+#include <ncursesw/ncurses.h>
 #include <math.h>
 #include <panel.h>
 

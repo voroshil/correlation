@@ -2,3 +2,4 @@
 *.d
 *.txt
 correlation
+local.mk

@@ -1,7 +1,13 @@
+-include local.mk
+
 CC ?= gcc
 
-CFLAGS += -Wall -std=c99 -I/usr/include/ncursesw -D_XOPEN_SOURCE=700
-LDFLAGS += -lncursesw -ltinfo -lm
+
+CFLAGS += -Wall -std=c99 -D_XOPEN_SOURCE=700
+CFLAGS += $(INCLUDES)
+
+LDFLAGS += -lncursesw -lm
+LDFLAGS += $(LIBS)
 
 TARGET := correlation$(SUFFIX)
 
@@ -14,7 +20,7 @@ $(TARGET): main.o
 	$(CC) -c -o $@ $(CFLAGS) $< 
 
 clean:
-	rm *.o *.d
+	rm -f *.o *.d
 
 
 .PHONY: all clean
