@@ -16,6 +16,10 @@
 #define ADJ_UNK 2
 #define ADJ_END 255
 
+void cleanup(){
+  setlocale(LC_ALL, "");
+  endwin();
+}
 void messagebox(const wchar_t *str){
   const int height = 6;
   const int width = 40;
@@ -62,10 +66,11 @@ void messagebox(const wchar_t *str){
   wrefresh(local_win);
   wrefresh(internal_win);
 
+  noecho();
   do{
    c = getch();
   }while (c!= '\n');
-
+  echo();
 
   wborder(local_win, ' ',' ',' ',' ',' ',' ',' ',' ');
   wrefresh(local_win);
@@ -192,7 +197,6 @@ unsigned char* load_adj_line(FILE* f){
         buf[loaded] = ADJ_END;
     }
   }while(c!= '\n' && c != EOF);
-//  printf("%d\n",loaded);
   buf = realloc(buf, (loaded+1)*sizeof(unsigned char));
   buf[loaded] = ADJ_END;
   return buf;
@@ -225,7 +229,6 @@ unsigned char** load_adj_data(char* filename){
         }
         buf[loaded] = row;
         loaded++;
-//        printf("lines: %d\n", loaded);
       }
    }while(len > 0);
 
@@ -264,7 +267,6 @@ double* load_line(FILE* f){
         cur = NAN;
         }
         pos = 0;
-//        printf("%lf\n", cur);
         if(loaded >= max_size){
           max_size = max_size + 1;
           buf = realloc(buf, max_size * sizeof(double));
@@ -276,7 +278,6 @@ double* load_line(FILE* f){
         break;
     }
   }while(c!= '\n' && c != EOF);
-//  printf("end %d\n", loaded);
   buf = realloc(buf, (loaded+1)*sizeof(double));
   buf[loaded] = INFINITY;
   return buf;
@@ -310,7 +311,6 @@ double** load_data(char* filename){
         }
         buf[loaded] = row;
         loaded++;
-//        printf("lines: %d\n", loaded);
       }
    }while(len > 0);
 
@@ -658,10 +658,14 @@ int main(){
   double alpha = 0;
 
 
+  initscr();
+
   setlocale(LC_ALL, "");
 
   pokaz = load_pokazat("pokazat.txt");
   if (!pokaz){
+    messagebox(L"Не найден файл pokazat.txt, продолжение невозможно.");
+    cleanup();
     return -1;
   }
   for(i=0; i<M; i++){
@@ -672,10 +676,13 @@ int main(){
   }
 
   setlocale(LC_ALL, "C");
-
   data = load_data("data.txt");
+  setlocale(LC_ALL, "");
+
   if (!data){
     destroy_array((void**)pokaz);
+    messagebox(L"Не найден файл data.txt, продолжение невозможно.");
+    cleanup();
     return -1;
   }
   for(i=0; i<M; i++){
@@ -685,23 +692,18 @@ int main(){
     }
     for(j=0; j<N; j++){
       if (isinf(data[i][j])){
-//        printf("N=>%d\n", i);
         N = j;
         break;
       }
     }
   }
+
+  setlocale(LC_ALL, "C");
   matrix_adj = load_adj_data("adj_matr.txt");
-
   setlocale(LC_ALL, "");
-
-  initscr();
 
   if (matrix_adj){
     size = check_adj_matrix_size(matrix_adj);
-
-    messagebox(L"Найдены ранее введенные данные в adj_matrix.txt. Заполнение будет продолжено.");
-
   }else{
     size = 0;
   }
@@ -719,6 +721,8 @@ int main(){
       matrix_adj = malloc(sizeof(unsigned char*));
       matrix_adj[0] = 0;
     }
+  }else{
+    messagebox(L"Найдены ранее введенные данные в adj_matrix.txt. Заполнение будет продолжено.");
   }
 
   for(i=0; i<size; i++){
@@ -776,13 +780,13 @@ int main(){
     }
   }
 
-  endwin();
-
   setlocale(LC_ALL, "C");
   save_correlation("corr_alpha.txt", matrix_adj, matrix_corr, M);
   save_adjustment("adj_matr.txt", matrix_adj, M);
   destroy_matrix(matrix_corr, M);
   destroy_array((void**)pokaz);
   destroy_array((void**)data);
+
+  cleanup();
   return 0;
 }
