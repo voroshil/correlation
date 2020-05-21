@@ -4,7 +4,6 @@
 #include <locale.h>
 #include <ncursesw/ncurses.h>
 #include <math.h>
-#include <panel.h>
 
 // Величина корреляции, приравнянная к 0
 #define THR 1e-6
