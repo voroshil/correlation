@@ -48,13 +48,13 @@ void messagebox(const wchar_t *str){
   local_win = newwin(height, width, starty, startx);
 
   box(local_win, 0, 0);
-  mvwaddch(local_win, 0, 2, ACS_RTEE);
+  mvwaddch(local_win, 0, 2, '[');
   mvwaddwstr(local_win, 0, 3, title);
-  mvwaddch(local_win, 0, 3+len, ACS_LTEE);
+  mvwaddch(local_win, 0, 3+len, ']');
 
-  mvwaddch(local_win, height-1, fpos-1, ACS_RTEE);
+  mvwaddch(local_win, height-1, fpos-1, '[');
   mvwaddwstr(local_win, height-1, fpos, footer);
-  mvwaddch(local_win, height-1, fpos + flen, ACS_LTEE);
+  mvwaddch(local_win, height-1, fpos + flen, ']');
 
   internal_win = derwin(local_win, height-2, width-2, 1,1);
   mvwaddwstr(internal_win, 0, 0, str);
